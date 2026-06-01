@@ -1,0 +1,6 @@
+.gradle
+.idea
+.intellijPlatform
+build
+/idea-plugin-dolphindb.iml
+local.properties

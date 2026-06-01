@@ -1,0 +1,40 @@
+idea-plugin-dolphindb
+Copyright 2026 The idea-plugin-dolphindb Contributors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+---
+
+Development disclosure:
+
+  Portions of this repository (including Kotlin sources, Gradle build files,
+  and documentation) were created or modified with the assistance of AI
+  coding tools. Third-party bundled resources and dependencies listed below
+  retain their original upstream authorship and licenses.
+
+---
+
+This project bundles or depends on third-party components. See
+THIRD_PARTY_NOTICES.md for attribution, versions, and license summaries.
+
+Notable bundled resources (Apache License 2.0 unless noted otherwise):
+
+  - DolphinDB VS Code extension resources under src/main/resources/ddb/
+    Source: https://github.com/dolphindb/vscode-extension
+    Includes: languageserver.cjs, docs.en.json, docs.zh.json, grammar files.
+    The languageserver.cjs bundle includes IDEA-specific protocol extensions
+    (e.g. lsp/getBuiltinCompletions) not present in the upstream VS Code build.
+
+  - DolphinDB Java API (Maven: com.dolphindb:dolphindb-javaapi)
+    Source: https://github.com/dolphindb/api-java
+    Version: see gradle/libs.versions.toml (dolphindb-javaapi version).

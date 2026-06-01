@@ -1,0 +1,90 @@
+// =============================================================================
+// DolphinDB 插件冒烟测试 — smoke_test.dos（2.00.x+）
+// 内存共享表用 undef(..., SHARED)；existsTable 仅用于 DFS（2 个参数）。
+// rand：rand(上限, n) 为 [0,上限) 均匀随机；从日期集合抽样用 rand(2024.01.01..2024.01.31, n)。
+// =============================================================================
+
+def dropSharedTable(name) {
+    try {
+        undef(name, SHARED)
+    } catch (ex) {
+    }
+}
+
+print("========== 1. 标量与向量 ==========")
+x = 1..10
+y = rand(10.0, 10)
+z = x + y
+print("sum(z) = " + string(sum(z)))
+
+print("========== 2. 内存表 ==========")
+dropSharedTable(`t_smoke_trade)
+n = 10
+tradeDates = 2024.01.01..2024.01.31
+t = table(1000..1009 as id, take(`A`B`C, n) as sym, rand(100.0, n) as qty, rand(tradeDates, n) as dt)
+share t as t_smoke_trade
+
+select top 5 * from t_smoke_trade
+select sym, sum(qty) as total_qty from t_smoke_trade group by sym
+
+print("========== 3. 条件查询 ==========")
+select * from t_smoke_trade where sym = `A, qty > 50
+
+print("========== 4. 连接（ej）==========")
+dropSharedTable(`t_smoke_ref)
+ref = table(take(`A`B`C, 3) as sym, 1..3 as tier)
+share ref as t_smoke_ref
+
+select top 5 * from ej(t_smoke_trade, t_smoke_ref, `sym)
+
+print("========== 5. 自定义函数 / SQL 聚合 ==========")
+// share 后的表不能直接 t.qty，须用 exec / sql
+def smoke_sum_qty(t) {
+    return exec sum(qty) from t
+}
+print("smoke_sum_qty = " + string(smoke_sum_qty(t_smoke_trade)))
+
+print("========== 6. 循环 ==========")
+cnt = 0
+for (i in 1:6) {
+    if (i % 2 == 0) {
+        cnt += i
+    }
+}
+print("loop cnt = " + string(cnt))
+
+print("========== 7. DFS（existsTable 两参数）==========")
+// COMPO 的 partitionScheme 必须是子库句柄，不能写 [VALUE(...), HASH(...)] 内联
+dbPath = "dfs://smoke_plugin_db"
+if (existsDatabase(dbPath)) {
+    dropDatabase(dbPath)
+}
+dbDate = database(, VALUE, 2024.01.01..2024.12.31)
+dbSym = database(, HASH, [SYMBOL, 8])
+db = database(dbPath, COMPO, [dbDate, dbSym])
+print("database created: " + dbPath)
+
+if (existsTable(dbPath, `t_smoke_dfs)) {
+    dropTable(dbPath, `t_smoke_dfs)
+}
+dfsDates = 2024.06.01..2024.12.31
+t_dfs = table(1..20 as id, take(`A`B`C`D, 20) as sym, rand(50.0, 20) as val, rand(dfsDates, 20) as dt)
+pt = db.createPartitionedTable(t_dfs, `t_smoke_dfs, `dt`sym)
+pt.append!(t_dfs)
+select count(*) from loadTable(dbPath, `t_smoke_dfs)
+
+print("========== 8. CREATE DATABASE + PARTITIONED BY（插件 normalizer）==========")
+ddlPath = "dfs://smoke_plugin_ddl_test"
+if (existsDatabase(ddlPath)) {
+    dropDatabase(ddlPath)
+}
+// 勿用 { } 包裹 DDL：服务端会把 { 当 JSON；normalizer 会保持 CREATE 与 PARTITIONED BY 同一语句
+CREATE DATABASE "dfs://smoke_plugin_ddl_test"
+PARTITIONED BY VALUE(2024.01.01..2024.06.30), HASH([SYMBOL, 4])
+print("CREATE DATABASE ok: " + ddlPath)
+
+print("========== 9. 系统信息 ==========")
+print("version = " + string(version()))
+print(getCurrentSessionAndUser())
+
+print("========== smoke_test 完成 ==========")

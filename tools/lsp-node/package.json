@@ -1,0 +1,11 @@
+{
+  "name": "dolphindb-idea-lsp-node",
+  "private": true,
+  "description": "Node.js workspace for DolphinDB IntelliJ plugin LSP runtime (development only).",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "check": "node --version"
+  }
+}

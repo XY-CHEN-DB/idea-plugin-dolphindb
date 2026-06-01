@@ -1,0 +1,20 @@
+{
+  "name": "dolphindb-textmate",
+  "contributes": {
+    "languages": [
+      {
+        "id": "dolphindb",
+        "aliases": ["DolphinDB"],
+        "extensions": [".dos"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "dolphindb",
+        "scopeName": "source.dolphindb",
+        "path": "./syntaxes/dolphindb.tmLanguage.json"
+      }
+    ]
+  }
+}

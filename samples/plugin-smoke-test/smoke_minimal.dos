@@ -1,0 +1,19 @@
+// 最小冒烟（无 DFS）。共享表删除用 undef(name, SHARED)，勿用单参数 existsTable。
+
+def dropSharedTable(name) {
+    try {
+        undef(name, SHARED)
+    } catch (ex) {
+    }
+}
+
+x = 1..5
+print("sum = " + string(sum(x)))
+
+dropSharedTable(`t_mini)
+t = table(1..5 as id, take(`A`B, 5) as sym, (1..5) * 10.0 as val)
+share t as t_mini
+select * from t_mini
+select sym, avg(val) from t_mini group by sym
+
+print("smoke_minimal ok")

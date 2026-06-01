@@ -1,0 +1,9 @@
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <textmate.bundleProvider implementation="com.xy.dolphindb.DolphinDbTextMateBundleProvider"/>
+        <editorHighlighterProvider filetype="DolphinDB"
+                                   implementationClass="org.jetbrains.plugins.textmate.language.syntax.highlighting.TextMateEditorHighlighterProvider"/>
+        <lang.syntaxHighlighterFactory language="DolphinDB"
+                                       implementationClass="org.jetbrains.plugins.textmate.language.syntax.highlighting.TextMateSyntaxHighlighterFactory"/>
+    </extensions>
+</idea-plugin>

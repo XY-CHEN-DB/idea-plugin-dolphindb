@@ -1,0 +1,107 @@
+<!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
+<idea-plugin>
+    <id>com.xy.dolphindb</id>
+    <name>DolphinDB Support (Unofficial)</name>
+    <vendor url="https://github.com">idea-plugin-dolphindb</vendor>
+
+    <description><![CDATA[
+        <p><b>Unofficial community plugin — not affiliated with or endorsed by DolphinDB.</b></p>
+        <p>DolphinDB language support for IntelliJ IDEA: syntax highlighting, built-in completion and documentation,
+        LSP (completion, navigation, hover, structure), server connection, SQL metadata, script execution,
+        Browser tool window, and debug (breakpoints, step, variables).</p>
+        <p>See the repository README for requirements (Node.js for LSP, DolphinDB server) and disclaimers.</p>
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.lang</depends>
+    <depends>com.intellij.modules.lsp</depends>
+    <depends>com.intellij.modules.xdebugger</depends>
+    <depends optional="true" config-file="textmate.xml">org.jetbrains.plugins.textmate</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <fileType name="DolphinDB"
+                  language="DolphinDB"
+                  implementationClass="com.xy.dolphindb.DolphinDbFileType"
+                  fieldName="INSTANCE"
+                  extensions="dos"/>
+
+        <lang.parserDefinition language="DolphinDB"
+                               implementationClass="com.xy.dolphindb.psi.DolphinDbParserDefinition"/>
+
+        <lang.braceMatcher language="DolphinDB"
+                          implementationClass="com.xy.dolphindb.psi.DolphinDbPairedBraceMatcher"/>
+
+        <braceMatcher filetype="DolphinDB"
+                      implementationClass="com.xy.dolphindb.editor.DolphinDbBraceMatcher"/>
+
+        <editorFactoryListener implementation="com.xy.dolphindb.editor.DolphinDbRainbowBracketsEditorFactoryListener"/>
+
+        <colorSettingsPage implementation="com.xy.dolphindb.editor.DolphinDbColorSettingsPage"/>
+
+        <completion.contributor language="DolphinDB"
+                                implementationClass="com.xy.dolphindb.docs.DolphinDbCompletionContributor"/>
+
+        <platform.backend.documentation.targetProvider order="first"
+                                                         implementation="com.xy.dolphindb.docs.DolphinDbDocumentationProvider"/>
+
+        <lang.documentationProvider language="DolphinDB"
+                                    implementationClass="com.xy.dolphindb.docs.DolphinDbLangDocumentationProvider"
+                                    order="first"/>
+
+        <codeInsight.parameterInfo language="DolphinDB"
+                                   implementationClass="com.xy.dolphindb.docs.DolphinDbParameterInfoHandler"/>
+
+        <gotoDeclarationHandler language="DolphinDB"
+                                implementationClass="com.xy.dolphindb.navigation.DolphinDbGotoDeclarationHandler"/>
+
+        <platform.lsp.serverSupportProvider
+                implementation="com.xy.dolphindb.lsp.DolphinDbLspServerSupportProvider"/>
+
+        <applicationConfigurable parentId="tools"
+                                 instance="com.xy.dolphindb.settings.DolphinDbSettingsConfigurable"
+                                 id="com.xy.dolphindb.settings"
+                                 displayName="DolphinDB"/>
+
+        <projectActivity implementation="com.xy.dolphindb.lsp.DolphinDbLspProjectActivity"/>
+
+        <applicationService serviceImplementation="com.xy.dolphindb.docs.DocsService"/>
+        <applicationService serviceImplementation="com.xy.dolphindb.settings.DolphinDbSettings"/>
+        <projectService serviceImplementation="com.xy.dolphindb.lsp.LspBridgeService"/>
+        <projectService serviceImplementation="com.xy.dolphindb.connection.MinimalConnectionService"/>
+        <projectService serviceImplementation="com.xy.dolphindb.connection.DolphinDbSessionService"/>
+
+        <toolWindow id="DolphinDB Browser"
+                    anchor="left"
+                    factoryClass="com.xy.dolphindb.browser.DolphinDbBrowserToolWindowFactory"
+                    icon="/icons/ddb-file.svg"/>
+
+        <toolWindow id="DolphinDB Results"
+                    anchor="bottom"
+                    factoryClass="com.xy.dolphindb.execution.DolphinDbResultsToolWindowFactory"
+                    icon="/icons/ddb-file.svg"/>
+
+        <projectService serviceImplementation="com.xy.dolphindb.execution.DolphinDbScriptExecutor"/>
+        <projectService serviceImplementation="com.xy.dolphindb.execution.DolphinDbResultsService"/>
+
+        <configurationType implementation="com.xy.dolphindb.debug.DolphinDbDebugConfigurationType"/>
+        <programRunner implementation="com.xy.dolphindb.debug.DolphinDbDebugProgramRunner"/>
+        <xdebugger.breakpointType implementation="com.xy.dolphindb.debug.DolphinDbLineBreakpointType"/>
+        <xdebugger.editorProvider implementation="com.xy.dolphindb.debug.DolphinDbDebugEditorsProvider"/>
+    </extensions>
+
+    <actions>
+        <action id="DolphinDb.ExecuteSelection"
+                class="com.xy.dolphindb.execution.DolphinDbExecuteSelectionAction"
+                icon="AllIcons.Actions.Execute">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <add-to-group group-id="RunMenu" anchor="last"/>
+        </action>
+        <action id="DolphinDb.DebugFile"
+                class="com.xy.dolphindb.debug.DolphinDbDebugAction"
+                icon="AllIcons.Debugger.Db_set_breakpoint">
+            <add-to-group group-id="RunMenu" anchor="last"/>
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="shift F9"/>
+        </action>
+    </actions>
+</idea-plugin>

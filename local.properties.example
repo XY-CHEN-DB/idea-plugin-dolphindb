@@ -1,0 +1,10 @@
+# Copy to `local.properties` (gitignored) or pass Gradle properties on the command line.
+#
+# JDK 21 for Gradle and compilation (required). gradlew reads this when shell JAVA_HOME is wrong.
+# org.gradle.java.home=/path/to/jdk-21
+#
+# Optional: use a locally installed IDE instead of the default downloaded Ultimate 2025.3
+# ideaHome=/Applications/IntelliJ IDEA.app
+#
+# Optional: sync LSP / docs / grammar from a VS Code extension build output
+# vscodeExtensionOut=/path/to/vscode-extension/out
