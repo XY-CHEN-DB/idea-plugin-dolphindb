@@ -73,12 +73,12 @@ pt = db.createPartitionedTable(t_dfs, `t_smoke_dfs, `dt`sym)
 pt.append!(t_dfs)
 select count(*) from loadTable(dbPath, `t_smoke_dfs)
 
-print("========== 8. CREATE DATABASE + PARTITIONED BY（插件 normalizer）==========")
+print("========== 8. CREATE DATABASE + PARTITIONED BY（多行 DDL，原样执行）==========")
 ddlPath = "dfs://smoke_plugin_ddl_test"
 if (existsDatabase(ddlPath)) {
     dropDatabase(ddlPath)
 }
-// 勿用 { } 包裹 DDL：服务端会把 { 当 JSON；normalizer 会保持 CREATE 与 PARTITIONED BY 同一语句
+// 勿用 { } 包裹 DDL：服务端会把 { 当 JSON
 CREATE DATABASE "dfs://smoke_plugin_ddl_test"
 PARTITIONED BY VALUE(2024.01.01..2024.06.30), HASH([SYMBOL, 4])
 print("CREATE DATABASE ok: " + ddlPath)

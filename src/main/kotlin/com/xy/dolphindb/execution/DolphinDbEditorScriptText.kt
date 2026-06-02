@@ -4,8 +4,12 @@ import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.util.TextRange
 
 internal object DolphinDbEditorScriptText {
+    /**
+     * Selected text, or the current line (VS Code: `get_text('selection or line')`).
+     * Multi-line scripts must be selected explicitly; blank lines inside `def` are not statement boundaries.
+     */
     fun selectedOrLine(editor: Editor): String? {
-        val selection = editor.selectionModel.selectedText?.trim()
+        val selection = editor.selectionModel.selectedText
         if (!selection.isNullOrEmpty()) {
             return selection
         }
@@ -13,7 +17,7 @@ internal object DolphinDbEditorScriptText {
         val line = document.getLineNumber(editor.caretModel.offset)
         val start = document.getLineStartOffset(line)
         val end = document.getLineEndOffset(line)
-        return document.getText(TextRange(start, end)).trim().takeIf { it.isNotEmpty() }
+        return document.getText(TextRange(start, end)).takeIf { it.isNotBlank() }
     }
 
     fun preview(text: String, maxLines: Int = 3): String {

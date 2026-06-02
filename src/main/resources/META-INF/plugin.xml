@@ -1,15 +1,12 @@
 <!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 <idea-plugin>
     <id>com.xy.dolphindb</id>
-    <name>DolphinDB Support (Unofficial)</name>
-    <vendor url="https://github.com">idea-plugin-dolphindb</vendor>
+    <name>DolphinDB</name>
+    <vendor url="https://www.dolphindb.cn">DolphinDB</vendor>
 
     <description><![CDATA[
-        <p><b>Unofficial community plugin — not affiliated with or endorsed by DolphinDB.</b></p>
-        <p>DolphinDB language support for IntelliJ IDEA: syntax highlighting, built-in completion and documentation,
-        LSP (completion, navigation, hover, structure), server connection, SQL metadata, script execution,
-        Browser tool window, and debug (breakpoints, step, variables).</p>
-        <p>See the repository README for requirements (Node.js for LSP, DolphinDB server) and disclaimers.</p>
+        DolphinDB language support for IntelliJ IDEA (Phase 1): syntax highlighting,
+        built-in completion, LSP symbol navigation, and SQL metadata completion.
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
@@ -27,6 +24,9 @@
 
         <lang.parserDefinition language="DolphinDB"
                                implementationClass="com.xy.dolphindb.psi.DolphinDbParserDefinition"/>
+
+        <lang.commenter language="DolphinDB"
+                        implementationClass="com.xy.dolphindb.editor.DolphinDbCommenter"/>
 
         <lang.braceMatcher language="DolphinDB"
                           implementationClass="com.xy.dolphindb.psi.DolphinDbPairedBraceMatcher"/>

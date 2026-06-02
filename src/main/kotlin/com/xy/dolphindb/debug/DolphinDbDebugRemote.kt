@@ -5,6 +5,7 @@ import com.intellij.openapi.diagnostic.logger
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.WebSocket
+import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
@@ -24,7 +25,8 @@ internal class DolphinDbDebugRemote(
     private val onError: Consumer<Throwable>,
 ) {
     companion object {
-        private const val DEFAULT_RPC_TIMEOUT_MS = 8_000L
+        const val DEFAULT_RPC_TIMEOUT_MS = 8_000L
+        const val STACK_RPC_TIMEOUT_MS = 60_000L
     }
 
     private val log = logger<DolphinDbDebugRemote>()
@@ -33,6 +35,8 @@ internal class DolphinDbDebugRemote(
     private val handlers = ConcurrentHashMap<Int, (DebugReceiveMessage) -> Unit>()
     private val pendingCalls = ConcurrentHashMap<Int, String>()
     private val events = ConcurrentHashMap<String, DebugEventHandler>()
+    private val incomingLock = Any()
+    private val incomingBuffer = ByteArrayOutputStream()
 
     @Volatile
     private var webSocket: WebSocket? = null
@@ -49,6 +53,9 @@ internal class DolphinDbDebugRemote(
         webSocket = null
         handlers.clear()
         pendingCalls.clear()
+        synchronized(incomingLock) {
+            incomingBuffer.reset()
+        }
     }
 
     fun on(event: String, handler: DebugEventHandler) {
@@ -94,7 +101,7 @@ internal class DolphinDbDebugRemote(
                 override fun onBinary(socket: WebSocket, data: ByteBuffer, last: Boolean): CompletableFuture<*>? {
                     val bytes = ByteArray(data.remaining())
                     data.get(bytes)
-                    handleIncoming(bytes)
+                    appendIncoming(bytes, last)
                     socket.request(1)
                     return null
                 }
@@ -116,14 +123,18 @@ internal class DolphinDbDebugRemote(
 
     private fun shouldLogin(): Boolean = username.isNotBlank() && password.isNotEmpty()
 
-    fun <T> call(func: String, args: Any? = null): CompletableFuture<T?> {
+    fun <T> call(
+        func: String,
+        args: Any? = null,
+        timeoutMs: Long = DEFAULT_RPC_TIMEOUT_MS,
+    ): CompletableFuture<T?> {
         if (terminated) {
             return CompletableFuture.completedFuture(null)
         }
         val result = CompletableFuture<T?>()
         val scheduled = callChain.handle { _, _ -> null }.thenCompose {
             connect().thenCompose {
-                invokeCall(func, args, result)
+                invokeCall(func, args, result, timeoutMs)
             }
         }
         callChain = scheduled
@@ -135,14 +146,19 @@ internal class DolphinDbDebugRemote(
         return result
     }
 
-    private fun <T> invokeCall(func: String, args: Any?, result: CompletableFuture<T?>): CompletableFuture<Void> {
+    private fun <T> invokeCall(
+        func: String,
+        args: Any?,
+        result: CompletableFuture<T?>,
+        timeoutMs: Long,
+    ): CompletableFuture<Void> {
         val id = nextId.getAndIncrement()
         val callDone = CompletableFuture<Void>()
         pendingCalls[id] = func
-        CompletableFuture.delayedExecutor(DEFAULT_RPC_TIMEOUT_MS, TimeUnit.MILLISECONDS).execute {
+        CompletableFuture.delayedExecutor(timeoutMs, TimeUnit.MILLISECONDS).execute {
             if (handlers.remove(id) != null) {
                 pendingCalls.remove(id)
-                val timeout = IllegalStateException("$func timed out after ${DEFAULT_RPC_TIMEOUT_MS}ms")
+                val timeout = IllegalStateException("$func timed out after ${timeoutMs}ms")
                 if (!result.isDone) {
                     result.completeExceptionally(timeout)
                 }
@@ -221,5 +237,18 @@ internal class DolphinDbDebugRemote(
                 onError.accept(error)
             }
         }
+    }
+
+    private fun appendIncoming(chunk: ByteArray, last: Boolean) {
+        val payload = synchronized(incomingLock) {
+            incomingBuffer.write(chunk)
+            if (!last) {
+                return
+            }
+            val complete = incomingBuffer.toByteArray()
+            incomingBuffer.reset()
+            complete
+        }
+        handleIncoming(payload)
     }
 }

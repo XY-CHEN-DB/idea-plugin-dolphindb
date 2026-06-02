@@ -21,7 +21,8 @@ class DolphinDbParserDefinition : ParserDefinition {
 
     override fun getWhitespaceTokens(): TokenSet = TokenSet.create(TokenType.WHITE_SPACE)
 
-    override fun getCommentTokens(): TokenSet = TokenSet.create(DolphinDbTokenTypes.LINE_COMMENT)
+    override fun getCommentTokens(): TokenSet =
+        TokenSet.create(DolphinDbTokenTypes.LINE_COMMENT, DolphinDbTokenTypes.BLOCK_COMMENT)
 
     override fun getStringLiteralElements(): TokenSet = TokenSet.create(DolphinDbTokenTypes.STRING)
 

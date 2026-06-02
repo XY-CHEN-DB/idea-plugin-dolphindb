@@ -54,6 +54,22 @@ class DolphinDbLexer : LexerBase() {
                 currentTokenType = DolphinDbTokenTypes.LINE_COMMENT
             }
 
+            char == '/' && currentPosition + 1 < end && buffer[currentPosition + 1] == '*' -> {
+                currentPosition += 2
+                while (currentPosition < end) {
+                    if (
+                        buffer[currentPosition] == '*' &&
+                        currentPosition + 1 < end &&
+                        buffer[currentPosition + 1] == '/'
+                    ) {
+                        currentPosition += 2
+                        break
+                    }
+                    currentPosition++
+                }
+                currentTokenType = DolphinDbTokenTypes.BLOCK_COMMENT
+            }
+
             char == '"' || char == '\'' || char == '`' -> {
                 val quote = char
                 currentPosition++

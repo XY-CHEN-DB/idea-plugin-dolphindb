@@ -30,8 +30,9 @@ class DolphinDbResultsPanel : JPanel(BorderLayout()) {
     private val splitPane = JSplitPane(JSplitPane.VERTICAL_SPLIT).apply {
         topComponent = ScrollPaneFactory.createScrollPane(consoleArea)
         bottomComponent = ScrollPaneFactory.createScrollPane(resultTable)
-        resizeWeight = 0.35
-        dividerLocation = 180
+        // Console / log strip: keep small by default (~1/3 of the old 180px default).
+        resizeWeight = CONSOLE_RESIZE_WEIGHT
+        dividerLocation = consoleDividerPx()
     }
 
     init {
@@ -73,7 +74,7 @@ class DolphinDbResultsPanel : JPanel(BorderLayout()) {
         )
         resultTable.autoResizeColumns()
         setTableVisible(true)
-        splitPane.dividerLocation = 180
+        applyConsoleDividerLocation()
     }
 
     private fun showFailure(result: DolphinDbExecutionResult.Failure) {
@@ -98,9 +99,20 @@ class DolphinDbResultsPanel : JPanel(BorderLayout()) {
         repaint()
     }
 
+    private fun applyConsoleDividerLocation() {
+        splitPane.dividerLocation = consoleDividerPx()
+    }
+
+    private fun consoleDividerPx(): Int = JBUI.scale(CONSOLE_DIVIDER_PX)
+
     private fun formatStatus(scriptPreview: String, elapsedMs: Long, success: Boolean): String {
         val status = if (success) "OK" else "FAILED"
         return "$status  ${elapsedMs}ms  $scriptPreview"
+    }
+
+    companion object {
+        private const val CONSOLE_DIVIDER_PX = 60
+        private const val CONSOLE_RESIZE_WEIGHT = 0.12
     }
 
     private fun JBTable.autoResizeColumns() {

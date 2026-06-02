@@ -62,6 +62,7 @@ internal object DolphinDbDebugValue {
                         val data = remote.call<com.google.gson.JsonElement>(
                             "getVariable",
                             listOf(childFrameId, vid, variable.name),
+                            DolphinDbDebugRemote.STACK_RPC_TIMEOUT_MS,
                         ).join()
                         val children = XValueChildrenList()
                         val obj = DolphinDbDebugMessageParser.dataAsObject(data)
@@ -83,7 +84,11 @@ internal object DolphinDbDebugValue {
     fun loadScopeVariables(remote: DolphinDbDebugRemote, frameId: Int, node: XCompositeNode) {
         ApplicationManager.getApplication().executeOnPooledThread {
             try {
-                val data = remote.call<com.google.gson.JsonElement>("getStackVariables", listOf(frameId)).join()
+                val data = remote.call<com.google.gson.JsonElement>(
+                    "getStackVariables",
+                    listOf(frameId),
+                    DolphinDbDebugRemote.STACK_RPC_TIMEOUT_MS,
+                ).join()
                 val array = DolphinDbDebugMessageParser.dataAsArray(data)
                 val children = XValueChildrenList()
                 if (array != null) {

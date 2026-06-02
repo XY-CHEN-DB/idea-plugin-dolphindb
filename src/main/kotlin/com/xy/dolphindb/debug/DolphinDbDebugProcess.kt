@@ -17,12 +17,14 @@ import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider
 import com.intellij.xdebugger.frame.XExecutionStack
 import com.intellij.xdebugger.frame.XStackFrame
 import com.intellij.xdebugger.frame.XSuspendContext
+import com.intellij.xdebugger.frame.XValueChildrenList
 import com.intellij.xdebugger.impl.XSourcePositionImpl
 import com.xy.dolphindb.DolphinDbBundle
 import com.xy.dolphindb.settings.DolphinDbCredentials
 import com.xy.dolphindb.settings.DolphinDbSettings
 import java.nio.file.Path
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 internal class DolphinDbDebugProcess(
     session: com.intellij.xdebugger.XDebugSession,
@@ -43,7 +45,7 @@ internal class DolphinDbDebugProcess(
     private val entryFile: VirtualFile = launch.file
     private var modules: Map<String, String> = emptyMap()
     private var stackFrames: List<StackFrameData> = emptyList()
-    private val stackTraceDirty = AtomicBoolean(true)
+    private val suspendEpoch = AtomicInteger(0)
     private val terminated = AtomicBoolean(false)
     private val bootstrapComplete = AtomicBoolean(false)
     private val scriptResolved = AtomicBoolean(false)
@@ -146,7 +148,9 @@ internal class DolphinDbDebugProcess(
     }
 
     private fun handlePause(message: DebugReceiveMessage) {
-        stackTraceDirty.set(true)
+        if (terminated.get()) {
+            return
+        }
         val pauseLine = message.data?.takeIf { it.isJsonObject }?.asJsonObject?.get("line")?.asInt
         ApplicationManager.getApplication().executeOnPooledThread {
             refreshStackAndSuspend(pauseLine)
@@ -170,80 +174,151 @@ internal class DolphinDbDebugProcess(
     }
 
     private fun handleException(message: DebugReceiveMessage) {
-        stackTraceDirty.set(true)
+        if (terminated.get()) {
+            return
+        }
         printOutput(message, ConsoleViewContentType.ERROR_OUTPUT)
+        val pauseLine = message.data?.takeIf { it.isJsonObject }?.asJsonObject?.get("line")?.asInt
         ApplicationManager.getApplication().executeOnPooledThread {
-            refreshStackAndSuspend()
+            refreshStackAndSuspend(pauseLine)
         }
     }
 
-    private fun refreshStackAndSuspend(fallbackLine: Int? = null) {
+    private fun refreshStackAndSuspend(fallbackLine: Int?) {
         if (terminated.get()) {
             return
         }
         try {
-            if (stackTraceDirty.compareAndSet(true, false)) {
-                stackFrames = loadStackFrames()
+            val loaded = loadStackFrames()
+            if (terminated.get()) {
+                return
             }
-            if (stackFrames.isEmpty() && fallbackLine != null) {
-                stackFrames = listOf(
-                    StackFrameData(
-                        stackFrameId = 0,
-                        line = fallbackLine,
-                        column = 0,
-                        name = null,
-                        moduleName = "",
-                    ),
-                )
-            }
-            val executionStack = DolphinDbExecutionStack(
-                displayName = stackFrames.firstOrNull()?.name ?: DolphinDbBundle.message("debug.stack.thread"),
-                frames = stackFrames.map { createXStackFrame(it) },
-            )
-            ApplicationManager.getApplication().invokeLater {
-                if (!terminated.get()) {
-                    session.positionReached(DolphinDbSuspendContext(executionStack))
+            stackFrames = loaded
+            if (stackFrames.isEmpty()) {
+                ApplicationManager.getApplication().invokeLater {
+                    session.consoleView?.print(
+                        DolphinDbBundle.message("debug.stacktrace.empty") + "\n",
+                        ConsoleViewContentType.ERROR_OUTPUT,
+                    )
                 }
+                val fallback = fallbackStackFrames(fallbackLine)
+                if (fallback.isEmpty()) {
+                    return
+                }
+                stackFrames = fallback
+            } else {
+                logStackFrames()
             }
+            reachSuspendPosition(stackFrames)
         } catch (error: Exception) {
+            log.warn("refreshStackAndSuspend failed", error)
             ApplicationManager.getApplication().invokeLater {
                 reportError(error)
+                session.consoleView?.print(
+                    DolphinDbBundle.message("debug.stacktrace.failed", error.message.orEmpty()) + "\n",
+                    ConsoleViewContentType.ERROR_OUTPUT,
+                )
+                val fallback = fallbackStackFrames(fallbackLine)
+                if (fallback.isNotEmpty() && !terminated.get()) {
+                    stackFrames = fallback
+                    reachSuspendPosition(stackFrames)
+                }
+            }
+        }
+    }
+
+    private fun logStackFrames() {
+        val summary = stackFrames.joinToString { frame ->
+            "id=${frame.stackFrameId} line=${frame.line} module=${frame.moduleName ?: "shared"} ${frame.label}"
+        }
+        log.info("Debug stack: $summary")
+    }
+
+    private fun fallbackStackFrames(serverLine: Int?): List<StackFrameData> {
+        if (serverLine == null) {
+            return emptyList()
+        }
+        return listOf(
+            StackFrameData(
+                stackFrameId = 0,
+                line = serverLine,
+                column = 0,
+                label = DolphinDbBundle.message("debug.stack.line", launch.editorLine(serverLine) + 1),
+                moduleName = "",
+                sharedScope = false,
+                fetchVariables = false,
+            ),
+        )
+    }
+
+    private fun reachSuspendPosition(frames: List<StackFrameData>) {
+        if (frames.isEmpty() || terminated.get()) {
+            return
+        }
+        val epoch = suspendEpoch.incrementAndGet()
+        val executionStack = DolphinDbExecutionStack(
+            displayName = frames.firstOrNull()?.label ?: DolphinDbBundle.message("debug.stack.thread"),
+            frames = frames.map { createXStackFrame(it, epoch) },
+        )
+        ApplicationManager.getApplication().invokeLater {
+            if (!terminated.get()) {
+                session.positionReached(DolphinDbSuspendContext(executionStack))
             }
         }
     }
 
     private fun loadStackFrames(): List<StackFrameData> {
-        val data = remote.call<JsonElement>("stackTrace").join()
+        val data = remote.call<JsonElement>("stackTrace", timeoutMs = DolphinDbDebugRemote.STACK_RPC_TIMEOUT_MS).join()
         val array = DolphinDbDebugMessageParser.dataAsArray(data) ?: return emptyList()
         val frames = mutableListOf<StackFrameData>()
         for (index in array.size() - 1 downTo 0) {
             val item = array.get(index).asJsonObject
+            val stackFrameId = item.get("stackFrameId")?.takeIf { !it.isJsonNull }?.asInt ?: continue
+            val line = item.get("line")?.asInt ?: 0
+            val moduleNameElement = item.get("moduleName")
+            val sharedScope = moduleNameElement == null || moduleNameElement.isJsonNull
+            val moduleName = if (sharedScope) null else moduleNameElement.asString
+            val serverName = item.get("name")?.takeIf { !it.isJsonNull }?.asString
+            val label = when {
+                sharedScope -> DolphinDbBundle.message("debug.stack.shared")
+                !serverName.isNullOrBlank() -> serverName
+                else -> DolphinDbBundle.message("debug.stack.line", launch.editorLine(line) + 1)
+            }
             frames += StackFrameData(
-                stackFrameId = item.get("stackFrameId")?.asInt ?: index,
-                line = item.get("line")?.asInt ?: 0,
+                stackFrameId = stackFrameId,
+                line = line,
                 column = item.get("column")?.asInt ?: 0,
-                name = item.get("name")?.asString,
-                moduleName = item.get("moduleName")?.takeIf { !it.isJsonNull }?.asString,
+                label = label,
+                moduleName = moduleName,
+                sharedScope = sharedScope,
+                fetchVariables = true,
             )
         }
         return frames
     }
 
-    private fun createXStackFrame(frame: StackFrameData): XStackFrame {
-        val file = resolveFile(frame.moduleName)
+    private fun createXStackFrame(frame: StackFrameData, suspendEpoch: Int): XStackFrame {
+        val file = resolveFile(frame.moduleName, frame.sharedScope)
         val position = XSourcePositionImpl.create(file, launch.editorLine(frame.line.coerceAtLeast(0)))
         return object : XStackFrame() {
             override fun getSourcePosition(): XSourcePosition = position
 
-            override fun getEqualityObject(): Any = frame.stackFrameId
+            override fun getEqualityObject(): Any = frame.stackFrameId to suspendEpoch
 
             override fun computeChildren(node: com.intellij.xdebugger.frame.XCompositeNode) {
+                if (!frame.fetchVariables) {
+                    node.addChildren(XValueChildrenList(), true)
+                    return
+                }
                 DolphinDbDebugValue.loadScopeVariables(remote, frame.stackFrameId, node)
             }
         }
     }
 
-    internal fun resolveFile(moduleName: String?): VirtualFile {
+    internal fun resolveFile(moduleName: String?, sharedScope: Boolean): VirtualFile {
+        if (sharedScope) {
+            return entryFile
+        }
         if (moduleName.isNullOrEmpty()) {
             return entryFile
         }
@@ -321,9 +396,11 @@ internal class DolphinDbDebugProcess(
     internal data class StackFrameData(
         val stackFrameId: Int,
         val line: Int,
-        val name: String?,
+        val label: String,
         val column: Int,
         val moduleName: String?,
+        val sharedScope: Boolean,
+        val fetchVariables: Boolean = true,
     )
 
     private class DolphinDbExecutionStack(

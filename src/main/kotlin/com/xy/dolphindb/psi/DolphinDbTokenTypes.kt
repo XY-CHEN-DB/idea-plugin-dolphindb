@@ -11,6 +11,9 @@ object DolphinDbTokenTypes {
     val LINE_COMMENT = IElementType("LINE_COMMENT", DolphinDbLanguage)
 
     @JvmField
+    val BLOCK_COMMENT = IElementType("BLOCK_COMMENT", DolphinDbLanguage)
+
+    @JvmField
     val STRING = IElementType("STRING", DolphinDbLanguage)
 
     @JvmField

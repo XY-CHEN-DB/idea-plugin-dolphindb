@@ -9,7 +9,9 @@ internal class DolphinDbPairedBraceMatcher : PairedBraceMatcher {
     override fun getPairs(): Array<BracePair> = PAIRS
 
     override fun isPairedBracesAllowedBeforeType(lbraceType: IElementType, contextType: IElementType?): Boolean =
-        contextType != DolphinDbTokenTypes.STRING && contextType != DolphinDbTokenTypes.LINE_COMMENT
+        contextType != DolphinDbTokenTypes.STRING &&
+            contextType != DolphinDbTokenTypes.LINE_COMMENT &&
+            contextType != DolphinDbTokenTypes.BLOCK_COMMENT
 
     override fun getCodeConstructStart(file: PsiFile, openingBraceOffset: Int): Int = openingBraceOffset
 

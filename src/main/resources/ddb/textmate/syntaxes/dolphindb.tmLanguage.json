@@ -8,13 +8,13 @@
             "name": "invalid.ellipsis.dolphindb"
         },
         {
+            "include": "#comment"
+        },
+        {
             "include": "#keyword"
         },
         {
             "include": "#literal"
-        },
-        {
-            "include": "#comment"
         },
         {
             "include": "#decorator"
